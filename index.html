@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Barovia Trail</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=Libre+Baskerville:ital@0;1&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Libre Baskerville', serif;
+            background-color: #0a0a0a;
+            color: #c7b39a;
+            background-image: url('https://www.transparenttextures.com/patterns/dark-denim-3.png');
+        }
+        .font-title {
+            font-family: 'IM Fell English SC', serif;
+        }
+        .game-container {
+            border: 2px solid #4a1a1a;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+            background-color: rgba(10, 10, 10, 0.8);
+        }
+        .screen {
+            display: none;
+        }
+        .screen.active {
+            display: block;
+        }
+        .btn {
+            background-color: #6b211a;
+            border: 1px solid #993a3a;
+            color: #fce5cd;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            background-color: #993a3a;
+            box-shadow: 0 0 10px rgba(255, 100, 100, 0.5);
+        }
+        .btn:disabled {
+            background-color: #3d2a2a;
+            border-color: #5a4a4a;
+            color: #8a7a7a;
+            cursor: not-allowed;
+        }
+        .log-entry {
+            border-left: 2px solid #6b211a;
+            padding-left: 10px;
+            margin-bottom: 8px;
+        }
+        .progress-bar-container {
+            background-color: #2a0f0f;
+            border: 1px solid #4a1a1a;
+        }
+        .progress-bar {
+            background-color: #b9956a;
+            transition: width 0.5s ease-in-out;
+        }
+        .sanity-bar {
+            background-color: #5a7d9a;
+        }
+        .health-bar {
+            background-color: #8a3a3a;
+        }
+        .event-modal {
+            background-color: rgba(0,0,0,0.9);
+            border: 2px solid #4a1a1a;
+        }
+        .character-card {
+            background-color: rgba(255,255,255,0.05);
+            border: 1px solid #4a1a1a;
+        }
+        /* New class for selected character cards for robustness */
+        .character-card.selected-card {
+            background-color: rgba(153, 27, 27, 0.5); /* Corresponds to bg-red-800/50 */
+            border-color: #c7b39a;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex items-center justify-center min-h-screen">
+
+    <div id="game" class="game-container w-full max-w-6xl mx-auto p-4 md:p-6 rounded-lg">
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen active text-center">
+            <h1 class="font-title text-5xl md:text-7xl text-red-800 mb-4">The Barovia Trail</h1>
+            <p class="text-lg mb-8">The Mists have claimed you. Survival is your only hope.</p>
+            <button id="start-game-btn" class="btn font-title text-2xl px-8 py-4 rounded">Begin the Journey</button>
+        </div>
+
+        <!-- Character Creation Screen -->
+        <div id="character-creation-screen" class="screen">
+            <h2 class="font-title text-4xl text-center mb-6">Assemble Your Lost Souls</h2>
+            <p class="text-center mb-6">Choose four souls to accompany you. Their skills may be the difference between survival and damnation.</p>
+            <div id="char-creation-message" class="text-center text-red-400 mb-4 h-6"></div>
+            <div id="archetype-selection" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <!-- Archetype cards will be injected here by JS -->
+            </div>
+            <div class="text-center">
+                 <button id="finalize-party-btn" class="btn font-title text-xl px-6 py-3 rounded" disabled>Embark with this Party</button>
+            </div>
+        </div>
+
+        <!-- Main Game Screen -->
+        <div id="main-game-screen" class="screen">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Left Column: Party & Inventory -->
+                <div class="lg:col-span-1 space-y-6">
+                    <div>
+                        <h3 class="font-title text-2xl mb-2 text-red-700">Party</h3>
+                        <div id="party-status" class="space-y-4">
+                            <!-- Party member status will be injected here -->
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="font-title text-2xl mb-2 text-red-700">Provisions</h3>
+                        <div id="inventory-status" class="space-y-2 text-lg">
+                            <!-- Inventory status will be injected here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Center Column: Journey Log & Controls -->
+                <div class="lg:col-span-2">
+                    <div class="mb-4">
+                        <h3 class="font-title text-2xl mb-2 text-red-700">Journey Progress</h3>
+                        <div class="progress-bar-container rounded-md overflow-hidden">
+                             <div id="journey-progress-bar" class="progress-bar h-6 text-center text-xs font-bold text-black leading-6" style="width: 0%;"></div>
+                        </div>
+                        <div class="flex justify-between text-sm mt-1">
+                            <span id="current-location-text">The Mists</span>
+                            <span id="next-location-text">Village of Barovia</span>
+                        </div>
+                         <div id="distance-text" class="text-center text-lg mt-2">0 / 300 miles</div>
+                    </div>
+
+                    <div id="log-container" class="h-96 bg-black bg-opacity-25 p-4 rounded-md overflow-y-auto border border-gray-700 mb-4">
+                        <!-- Log entries will be added here -->
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <h4 class="font-title text-xl mb-2">Travel Pace</h4>
+                            <select id="pace-select" class="w-full p-2 rounded bg-gray-800 border border-gray-600">
+                                <option value="steady">Steady</option>
+                                <option value="grueling">Grueling</option>
+                                <option value="rest">Rest</option>
+                            </select>
+                        </div>
+                        <div>
+                            <h4 class="font-title text-xl mb-2">Rations</h4>
+                            <select id="rations-select" class="w-full p-2 rounded bg-gray-800 border border-gray-600">
+                                <option value="filling">Filling</option>
+                                <option value="meager">Meager</option>
+                                <option value="barebones">Bare Bones</option>
+                            </select>
+                        </div>
+                    </div>
+                     <div class="text-center mt-4">
+                        <button id="continue-btn" class="btn font-title text-2xl px-10 py-3 rounded">Continue</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Event Modal -->
+        <div id="event-modal" class="fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4" style="display: none;">
+            <div class="event-modal w-full max-w-2xl mx-auto p-6 rounded-lg">
+                <h2 id="event-title" class="font-title text-3xl text-red-700 mb-4"></h2>
+                <p id="event-description" class="text-lg mb-6"></p>
+                <div id="event-choices" class="space-y-3">
+                    <!-- Choices will be injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="screen text-center">
+            <h1 id="game-over-title" class="font-title text-7xl text-red-900 mb-4">You Are Lost</h1>
+            <p id="game-over-message" class="text-xl mb-8"></p>
+            <button id="restart-game-btn" class="btn font-title text-2xl px-8 py-4 rounded">Try Again</button>
+        </div>
+
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM Elements ---
+        const screens = {
+            start: document.getElementById('start-screen'),
+            characterCreation: document.getElementById('character-creation-screen'),
+            main: document.getElementById('main-game-screen'),
+            gameOver: document.getElementById('game-over-screen'),
+        };
+        const buttons = {
+            start: document.getElementById('start-game-btn'),
+            finalizeParty: document.getElementById('finalize-party-btn'),
+            restart: document.getElementById('restart-game-btn'),
+            continue: document.getElementById('continue-btn'),
+        };
+        const ui = {
+            archetypeSelection: document.getElementById('archetype-selection'),
+            charCreationMessage: document.getElementById('char-creation-message'),
+            partyStatus: document.getElementById('party-status'),
+            inventoryStatus: document.getElementById('inventory-status'),
+            logContainer: document.getElementById('log-container'),
+            progressBar: document.getElementById('journey-progress-bar'),
+            currentLocationText: document.getElementById('current-location-text'),
+            nextLocationText: document.getElementById('next-location-text'),
+            distanceText: document.getElementById('distance-text'),
+            paceSelect: document.getElementById('pace-select'),
+            rationsSelect: document.getElementById('rations-select'),
+        };
+        const eventModal = {
+            container: document.getElementById('event-modal'),
+            title: document.getElementById('event-title'),
+            description: document.getElementById('event-description'),
+            choices: document.getElementById('event-choices'),
+        };
+        const gameOverScreen = {
+            title: document.getElementById('game-over-title'),
+            message: document.getElementById('game-over-message'),
+        };
+
+        // --- Game Data ---
+        const archetypes = {
+            gravekeeper: { name: "Gravekeeper", description: "Resistant to fear. Starts with higher Sanity.", startSanity: 85 },
+            acolyte: { name: "Acolyte", description: "Can perform rites to restore Sanity. Starts with a Holy Symbol.", startSanity: 75 },
+            herbalist: { name: "Herbalist", description: "Can identify rare plants for remedies. Starts with extra Medical Supplies.", startSanity: 70 },
+            'man-at-arms': { name: "Man-at-Arms", description: "Better at fighting off creatures. Starts with Silvered Ammunition.", startSanity: 65 },
+            rogue: { name: "Rogue", description: "Expert at scavenging and finding extra supplies.", startSanity: 60 },
+            noble: { name: "Disgraced Noble", description: "Starts with more food, but is more susceptible to despair.", startSanity: 50 },
+        };
+
+        const landmarks = [
+            { name: "The Mists", distance: 0 },
+            { name: "Village of Barovia", distance: 50 },
+            { name: "River Ivlis Crossing", distance: 80 },
+            { name: "Old Bonegrinder", distance: 120 },
+            { name: "Town of Vallaki", distance: 180 },
+            { name: "Tsolenka Pass", distance: 250 },
+            { name: "The Amber Temple", distance: 300 },
+        ];
+
+        // --- Game State ---
+        let gameState = {};
+
+        function initializeGameState() {
+            gameState = {
+                party: [],
+                inventory: {
+                    food: 80,
+                    medicalSupplies: 5,
+                    silveredAmmo: 5,
+                    holySymbols: 0,
+                    lanternOil: 3,
+                },
+                distance: 0,
+                currentLandmarkIndex: 0,
+                days: 0,
+                gamePace: 'paused', // 'traveling', 'event', 'paused'
+            };
+        }
+
+        // --- Game Logic ---
+
+        function switchScreen(screenName) {
+            Object.values(screens).forEach(s => s.classList.remove('active'));
+            screens[screenName].classList.add('active');
+        }
+
+        function setupCharacterCreation() {
+            ui.archetypeSelection.innerHTML = '';
+            for (const key in archetypes) {
+                const arch = archetypes[key];
+                const card = document.createElement('div');
+                card.className = 'character-card p-4 rounded-lg cursor-pointer hover:bg-red-900/50';
+                card.dataset.id = key;
+                card.innerHTML = `
+                    <h3 class="font-title text-xl text-red-500">${arch.name}</h3>
+                    <p class="text-sm">${arch.description}</p>
+                `;
+                card.addEventListener('click', () => toggleArchetypeSelection(card, key));
+                ui.archetypeSelection.appendChild(card);
+            }
+        }
+
+        function toggleArchetypeSelection(card, key) {
+            card.classList.toggle('selected-card');
+            const selectedArchetypes = Array.from(ui.archetypeSelection.querySelectorAll('.selected-card'));
+            
+            ui.charCreationMessage.textContent = ''; // Clear previous message
+
+            if (selectedArchetypes.length > 4) {
+                card.classList.remove('selected-card');
+                ui.charCreationMessage.textContent = "You may only select four souls for your party.";
+                setTimeout(() => {
+                    if (ui.charCreationMessage.textContent === "You may only select four souls for your party.") {
+                         ui.charCreationMessage.textContent = '';
+                    }
+                }, 3000);
+                return;
+            }
+            
+            buttons.finalizeParty.disabled = selectedArchetypes.length !== 4;
+        }
+
+        function finalizeParty() {
+            const selectedCards = ui.archetypeSelection.querySelectorAll('.selected-card');
+            if (selectedCards.length !== 4) return;
+
+            gameState.party = []; // Clear party before re-populating
+            selectedCards.forEach((card, index) => {
+                const archKey = card.dataset.id;
+                const arch = archetypes[archKey];
+                const memberName = `Soul ${index + 1}`; // Simple naming for now
+                gameState.party.push({
+                    name: memberName,
+                    archetype: arch.name,
+                    health: 100,
+                    sanity: arch.startSanity,
+                    status: 'Normal',
+                    phobias: [],
+                });
+                
+                // Add starting items based on archetype
+                if (arch.name === 'Acolyte') gameState.inventory.holySymbols += 1;
+                if (arch.name === 'Herbalist') gameState.inventory.medicalSupplies += 5;
+                if (arch.name === 'Man-at-Arms') gameState.inventory.silveredAmmo += 5;
+                if (arch.name === 'Disgraced Noble') gameState.inventory.food += 40;
+            });
+            
+            startGame();
+        }
+        
+        function startGame() {
+            ui.logContainer.innerHTML = '';
+            logMessage("The Mists coil around you, cold and suffocating. A path appears. You have no choice but to take it.");
+            gameState.gamePace = 'paused';
+            updateUI();
+            switchScreen('main');
+        }
+
+        function logMessage(message, type = 'normal') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            let color = 'text-gray-400';
+            if (type === 'event') color = 'text-yellow-400';
+            if (type === 'danger') color = 'text-red-500';
+            if (type === 'success') color = 'text-green-400';
+            entry.innerHTML = `<p class="${color}">${message}</p>`;
+            ui.logContainer.appendChild(entry);
+            ui.logContainer.scrollTop = ui.logContainer.scrollHeight;
+        }
+
+        function updateUI() {
+            // Party Status
+            ui.partyStatus.innerHTML = '';
+            gameState.party.forEach(member => {
+                if (member.health <= 0) return; // Don't display dead members
+                const memberDiv = document.createElement('div');
+                memberDiv.className = 'character-card p-3 rounded';
+                memberDiv.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-bold">${member.name} (${member.archetype})</span>
+                        <span class="text-sm ${member.status === 'Normal' ? 'text-green-400' : 'text-yellow-400'}">${member.status}</span>
+                    </div>
+                    <div class="progress-bar-container rounded overflow-hidden mb-1">
+                        <div class="progress-bar health-bar h-3" style="width: ${member.health}%"></div>
+                    </div>
+                    <div class="progress-bar-container rounded overflow-hidden">
+                        <div class="progress-bar sanity-bar h-3" style="width: ${member.sanity}%"></div>
+                    </div>
+                `;
+                ui.partyStatus.appendChild(memberDiv);
+            });
+
+            // Inventory Status
+            ui.inventoryStatus.innerHTML = `
+                <p>Food: ${gameState.inventory.food} lbs</p>
+                <p>Medical Supplies: ${gameState.inventory.medicalSupplies}</p>
+                <p>Silvered Ammo: ${gameState.inventory.silveredAmmo}</p>
+                <p>Holy Symbols: ${gameState.inventory.holySymbols}</p>
+                <p>Lantern Oil: ${gameState.inventory.lanternOil}</p>
+            `;
+
+            // Progress Bar
+            const currentLandmark = landmarks[gameState.currentLandmarkIndex];
+            const nextLandmark = landmarks[gameState.currentLandmarkIndex + 1];
+            if (nextLandmark) {
+                const totalDistance = landmarks[landmarks.length - 1].distance;
+                const distanceToNext = nextLandmark.distance - currentLandmark.distance;
+                const progressOnLeg = gameState.distance - currentLandmark.distance;
+                const progressPercent = Math.max(0, Math.min(100, (progressOnLeg / distanceToNext) * 100));
+                ui.progressBar.style.width = `${progressPercent}%`;
+                ui.progressBar.textContent = `${Math.floor(progressPercent)}%`;
+                ui.currentLocationText.textContent = currentLandmark.name;
+                ui.nextLocationText.textContent = nextLandmark.name;
+                ui.distanceText.textContent = `${gameState.distance} / ${totalDistance} miles`;
+            }
+        }
+
+        function continueJourney() {
+            if (gameState.gamePace !== 'paused') return;
+            
+            gameState.days++;
+            logMessage(`--- Day ${gameState.days} ---`, 'event');
+
+            // 1. Calculate distance traveled
+            let distanceCovered = 0;
+            const pace = ui.paceSelect.value;
+            if (pace === 'steady') {
+                distanceCovered = 10 + Math.floor(Math.random() * 6); // 10-15
+            } else if (pace === 'grueling') {
+                distanceCovered = 15 + Math.floor(Math.random() * 11); // 15-25
+            }
+            gameState.distance += distanceCovered;
+
+            // 2. Consume resources
+            const rations = ui.rationsSelect.value;
+            let foodConsumed = 0;
+            const livingPartySize = gameState.party.filter(m => m.health > 0).length;
+            if (rations === 'filling') {
+                foodConsumed = livingPartySize * 3;
+            } else if (rations === 'meager') {
+                foodConsumed = livingPartySize * 2;
+            } else { // barebones
+                foodConsumed = livingPartySize * 1;
+            }
+            gameState.inventory.food -= foodConsumed;
+            logMessage(`You traveled ${distanceCovered} miles. You consumed ${foodConsumed} lbs of food.`);
+
+            // 3. Health & Sanity effects of pace and rations
+            handlePaceAndRationEffects(pace, rations);
+            
+            // 4. Check for events
+            checkForRandomEvent();
+
+            // 5. Check for landmark arrival
+            const nextLandmark = landmarks[gameState.currentLandmarkIndex + 1];
+            if (nextLandmark && gameState.distance >= nextLandmark.distance) {
+                gameState.distance = nextLandmark.distance;
+                gameState.currentLandmarkIndex++;
+                arriveAtLandmark(landmarks[gameState.currentLandmarkIndex]);
+            }
+
+            // 6. Check for game over
+            checkGameOver();
+            updateUI();
+        }
+
+        function handlePaceAndRationEffects(pace, rations) {
+             gameState.party.forEach(member => {
+                if (member.health <= 0) return;
+                // Pace effects
+                if (pace === 'grueling' && Math.random() < 0.2) {
+                    member.health = Math.max(0, member.health - 5);
+                    logMessage(`${member.name} is exhausted from the grueling pace.`, 'danger');
+                }
+                if (pace === 'rest') {
+                    member.health = Math.min(100, member.health + 10);
+                    logMessage(`${member.name} feels rested.`, 'success');
+                }
+
+                // Ration effects
+                if (rations === 'barebones' && Math.random() < 0.25) {
+                    member.health = Math.max(0, member.health - 5);
+                    member.sanity = Math.max(0, member.sanity - 3);
+                    logMessage(`${member.name} is weak from hunger.`, 'danger');
+                }
+                if (rations === 'filling' && Math.random() < 0.1) {
+                    member.sanity = Math.min(100, member.sanity + 2);
+                }
+             });
+        }
+        
+        function changeSanity(member, amount, reason) {
+            member.sanity = Math.max(0, Math.min(100, member.sanity + amount));
+            if (amount < 0) {
+                logMessage(`${member.name} loses ${-amount} sanity. ${reason}`, 'danger');
+                checkSanityEffects(member);
+            } else if (amount > 0) {
+                logMessage(`${member.name} gains ${amount} sanity. ${reason}`, 'success');
+            }
+        }
+
+        function checkSanityEffects(member) {
+            if (member.sanity < 50 && member.sanity > 25 && Math.random() < 0.1) {
+                if (member.status === 'Normal') {
+                    member.status = 'Unsettled';
+                    logMessage(`${member.name} has become unsettled, muttering in their sleep.`, 'danger');
+                }
+            }
+            if (member.sanity <= 25 && member.sanity > 0 && Math.random() < 0.15) {
+                if (member.status !== 'Unhinged') {
+                    member.status = 'Unhinged';
+                    logMessage(`${member.name}'s eyes dart around nervously. They are becoming unhinged.`, 'danger');
+                    // Add a phobia or mania here in future
+                }
+            }
+            if (member.sanity <= 0) {
+                member.status = 'Lost';
+                member.health = 0;
+                logMessage(`${member.name} has been lost to madness! They wander off into the mists, screaming.`, 'danger');
+            }
+        }
+
+        function checkGameOver() {
+            if (gameState.inventory.food <= 0) {
+                gameState.inventory.food = 0;
+                logMessage("You have run out of food!", 'danger');
+                // Apply starvation damage
+                gameState.party.forEach(member => {
+                    if (member.health > 0) {
+                        member.health = Math.max(0, member.health - 15);
+                        logMessage(`${member.name} is starving.`, 'danger');
+                    }
+                });
+            }
+
+            const livingMembers = gameState.party.filter(m => m.health > 0);
+            if (livingMembers.length === 0) {
+                gameOverScreen.title.textContent = "Your Party Has Perished";
+                gameOverScreen.message.textContent = "The Mists of Barovia have claimed you all. Your journey ends in despair and failure.";
+                switchScreen('gameOver');
+            }
+        }
+        
+        function arriveAtLandmark(landmark) {
+            logMessage(`You have arrived at ${landmark.name}.`, 'success');
+            gameState.gamePace = 'paused';
+            
+            // Trigger landmark-specific event
+            const event = landmarkEvents.find(e => e.landmark === landmark.name);
+            if (event) {
+                triggerEvent(event);
+            } else if (landmark.name === "The Amber Temple") {
+                // Victory condition
+                gameOverScreen.title.textContent = "You Have Survived";
+                gameOverScreen.message.textContent = "You have reached the Amber Temple. It is a place of great evil, but you have survived the trail. For now.";
+                switchScreen('gameOver');
+            }
+        }
+
+        // --- Event System ---
+        function checkForRandomEvent() {
+            if (gameState.gamePace === 'event') return; // Don't trigger event if one is already active
+            // Higher chance of event at grueling pace
+            const eventChance = (ui.paceSelect.value === 'grueling') ? 0.5 : 0.3;
+            if (Math.random() < eventChance) {
+                // Select a random event that is not a landmark event
+                const availableEvents = randomEvents.filter(e => !e.landmark);
+                const event = availableEvents[Math.floor(Math.random() * availableEvents.length)];
+                triggerEvent(event);
+            }
+        }
+
+        function triggerEvent(event) {
+            gameState.gamePace = 'event';
+            buttons.continue.disabled = true;
+            eventModal.container.style.display = 'flex';
+            eventModal.title.textContent = event.title;
+            eventModal.description.textContent = event.description;
+            eventModal.choices.innerHTML = '';
+
+            event.choices.forEach(choice => {
+                const button = document.createElement('button');
+                button.textContent = choice.text;
+                button.className = 'btn w-full p-3 rounded text-left';
+                button.onclick = () => {
+                    choice.action();
+                    eventModal.container.style.display = 'none';
+                    gameState.gamePace = 'paused';
+                    buttons.continue.disabled = false;
+                    updateUI();
+                    checkGameOver();
+                };
+                eventModal.choices.appendChild(button);
+            });
+        }
+        
+        // --- Event Definitions ---
+        const landmarkEvents = [
+            {
+                landmark: "River Ivlis Crossing",
+                title: "The River Ivlis",
+                description: "The black, frigid water of the River Ivlis rushes before you. The current is strong and the water unnaturally cold.",
+                choices: [
+                    { text: "Ford the river.", action: () => {
+                        logMessage("You decide to brave the river's current.");
+                        if (Math.random() > 0.5) {
+                            logMessage("You make it across, but the chilling water seeps into your bones.", 'success');
+                            gameState.party.forEach(m => changeSanity(m, -5, "from the unnatural cold."));
+                        } else {
+                            logMessage("The current sweeps away some of your supplies!", 'danger');
+                            const lostFood = Math.floor(Math.random() * 20) + 5;
+                            gameState.inventory.food -= lostFood;
+                            logMessage(`You lost ${lostFood} lbs of food.`);
+                        }
+                    }},
+                    { text: "Spend time building a raft.", action: () => {
+                        logMessage("You spend half a day building a crude raft.");
+                        gameState.inventory.food -= 10; // Consume food for the time spent
+                        logMessage("The raft holds. You cross safely, but you've lost precious time and rations.");
+                    }},
+                ]
+            },
+            {
+                landmark: "Old Bonegrinder",
+                title: "The Old Bonegrinder",
+                description: "A dilapidated windmill stands atop a hill, a sickly sweet smell wafting from it. You can hear the faint crying of a child from within. The place feels deeply wrong.",
+                choices: [
+                    { text: "Give it a wide berth and hurry past.", action: () => {
+                        logMessage("You steer clear of the wretched windmill. A wise choice.");
+                        gameState.party.forEach(m => {
+                            if (Math.random() < 0.3) {
+                                changeSanity(m, -10, "from the palpable evil of the place.");
+                            }
+                        });
+                    }},
+                    { text: "Investigate the windmill.", action: () => {
+                        logMessage("You approach the windmill, your heart pounding in your chest.", 'danger');
+                        logMessage("Three grotesque women emerge, their eyes glowing. 'Come for a pastry, dearies?' they cackle. You flee in terror.");
+                        gameState.party.forEach(m => changeSanity(m, -25, "after encountering the hags."));
+                        if (Math.random() < 0.2) {
+                            const unluckyMember = gameState.party[Math.floor(Math.random() * gameState.party.length)];
+                            unluckyMember.health -= 30;
+                            logMessage(`${unluckyMember.name} was struck by a vile curse while fleeing!`, 'danger');
+                        }
+                    }},
+                ]
+            }
+        ];
+        
+        const randomEvents = [
+            {
+                title: "An Unsettling Silence",
+                description: "The sounds of the forest suddenly die. The air grows heavy and cold. An unnatural silence presses in on you.",
+                choices: [
+                    { text: "Huddle together and wait for it to pass.", action: () => {
+                        logMessage("You wait, nerves frayed, until the natural sounds of the woods slowly return.");
+                        gameState.party.forEach(m => changeSanity(m, -5, "from the oppressive silence."));
+                    }}
+                ]
+            },
+            {
+                title: "A Shambling Corpse",
+                description: "A lone zombie lurches out of the woods, its eyes vacant, its jaw slack. It is slow, but relentless.",
+                choices: [
+                    { text: "Use a silvered bullet to dispatch it.", action: () => {
+                        if (gameState.inventory.silveredAmmo > 0) {
+                            gameState.inventory.silveredAmmo--;
+                            logMessage("A single shot puts the creature down for good.", 'success');
+                        } else {
+                            logMessage("You have no silvered ammo! You are forced to flee, abandoning some food in your haste.", 'danger');
+                            gameState.inventory.food = Math.max(0, gameState.inventory.food - 15);
+                        }
+                    }},
+                    { text: "Attempt to avoid it.", action: () => {
+                        logMessage("You manage to slip past the creature unnoticed.");
+                    }},
+                ]
+            },
+            {
+                title: "The Mists Deceive",
+                description: "The ever-present mists thicken around you. The path twists and turns, and soon you are hopelessly lost.",
+                choices: [
+                    { text: "Press on.", action: () => {
+                        logMessage("You wander for hours, losing a full day's travel and rations.", 'danger');
+                        gameState.inventory.food -= gameState.party.filter(m=>m.health>0).length * 2;
+                        gameState.party.forEach(m => changeSanity(m, -8, "from the disorienting mists."));
+                    }}
+                ]
+            },
+            {
+                title: "A Moment of Hope",
+                description: "You come across a small, hidden shrine to a forgotten god. A faint, warm light emanates from it, a stark contrast to the oppressive gloom.",
+                choices: [
+                    { text: "Offer a prayer.", action: () => {
+                        logMessage("A sense of peace washes over the party, a rare comfort in this cursed land.", 'success');
+                        gameState.party.forEach(m => changeSanity(m, 10, "from the moment of respite."));
+                    }}
+                ]
+            },
+            {
+                title: "Tainted Spring",
+                description: "You find a spring of clear, cool water. It looks refreshing after a long day's travel.",
+                choices: [
+                    { text: "Drink from the spring.", action: () => {
+                        logMessage("You drink deeply from the spring.");
+                        if (Math.random() > 0.4) {
+                            logMessage("The water is tainted! Sickness grips the party.", 'danger');
+                            gameState.party.forEach(m => {
+                                if(Math.random() > 0.5) m.health = Math.max(0, m.health - 15);
+                            });
+                        } else {
+                            logMessage("The water is clean and refreshing.", 'success');
+                        }
+                    }},
+                    { text: "Ignore it and move on.", action: () => {
+                        logMessage("You decide not to risk it and continue on your way.");
+                    }},
+                ]
+            }
+        ];
+
+
+        // --- Event Listeners ---
+        buttons.start.addEventListener('click', () => {
+            // Reset character selection UI before switching
+            const selectedCards = ui.archetypeSelection.querySelectorAll('.selected-card');
+            selectedCards.forEach(c => c.classList.remove('selected-card'));
+            buttons.finalizeParty.disabled = true;
+            ui.charCreationMessage.textContent = '';
+            switchScreen('characterCreation');
+        });
+        buttons.finalizeParty.addEventListener('click', finalizeParty);
+        buttons.restart.addEventListener('click', () => {
+            initializeGameState();
+            setupCharacterCreation();
+            switchScreen('start');
+        });
+        buttons.continue.addEventListener('click', continueJourney);
+
+        // --- Initial Setup ---
+        initializeGameState();
+        setupCharacterCreation();
+    });
+    </script>
+</body>
+</html>
