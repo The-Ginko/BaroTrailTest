@@ -64,7 +64,7 @@
         .health-bar {
             background-color: #8a3a3a;
         }
-        .event-modal {
+        .modal {
             background-color: rgba(0,0,0,0.9);
             border: 2px solid #4a1a1a;
         }
@@ -72,10 +72,12 @@
             background-color: rgba(255,255,255,0.05);
             border: 1px solid #4a1a1a;
         }
-        /* New class for selected character cards for robustness */
         .character-card.selected-card {
             background-color: rgba(153, 27, 27, 0.5); /* Corresponds to bg-red-800/50 */
             border-color: #c7b39a;
+        }
+        .trade-item:hover {
+            background-color: rgba(255,255,255,0.1);
         }
     </style>
 </head>
@@ -165,13 +167,44 @@
             </div>
         </div>
         
-        <!-- Event Modal -->
+        <!-- Generic Event Modal -->
         <div id="event-modal" class="fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4" style="display: none;">
-            <div class="event-modal w-full max-w-2xl mx-auto p-6 rounded-lg">
+            <div class="modal w-full max-w-2xl mx-auto p-6 rounded-lg">
                 <h2 id="event-title" class="font-title text-3xl text-red-700 mb-4"></h2>
                 <p id="event-description" class="text-lg mb-6"></p>
                 <div id="event-choices" class="space-y-3">
                     <!-- Choices will be injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Town/Landmark Modal -->
+        <div id="town-modal" class="fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4" style="display: none;">
+            <div class="modal w-full max-w-2xl mx-auto p-6 rounded-lg">
+                <h2 id="town-title" class="font-title text-4xl text-red-700 mb-2"></h2>
+                <p id="town-description" class="text-lg mb-6"></p>
+                <div id="town-choices" class="space-y-3">
+                    <!-- Town choices will be injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Trade/Store Modal -->
+        <div id="trade-modal" class="fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4" style="display: none;">
+            <div class="modal w-full max-w-3xl mx-auto p-6 rounded-lg">
+                <h2 id="trade-title" class="font-title text-3xl text-red-700 mb-4"></h2>
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="font-title text-2xl mb-2">For Sale</h3>
+                        <div id="store-inventory" class="space-y-2"></div>
+                    </div>
+                    <div>
+                        <h3 class="font-title text-2xl mb-2">Your Wares</h3>
+                        <div id="player-inventory-trade" class="space-y-2"></div>
+                    </div>
+                </div>
+                <div class="text-center mt-6">
+                    <button id="close-trade-btn" class="btn font-title text-xl px-6 py-3 rounded">Leave</button>
                 </div>
             </div>
         </div>
@@ -199,6 +232,7 @@
             finalizeParty: document.getElementById('finalize-party-btn'),
             restart: document.getElementById('restart-game-btn'),
             continue: document.getElementById('continue-btn'),
+            closeTrade: document.getElementById('close-trade-btn'),
         };
         const ui = {
             archetypeSelection: document.getElementById('archetype-selection'),
@@ -219,6 +253,18 @@
             description: document.getElementById('event-description'),
             choices: document.getElementById('event-choices'),
         };
+        const townModal = {
+            container: document.getElementById('town-modal'),
+            title: document.getElementById('town-title'),
+            description: document.getElementById('town-description'),
+            choices: document.getElementById('town-choices'),
+        };
+        const tradeModal = {
+            container: document.getElementById('trade-modal'),
+            title: document.getElementById('trade-title'),
+            storeInventory: document.getElementById('store-inventory'),
+            playerInventory: document.getElementById('player-inventory-trade'),
+        };
         const gameOverScreen = {
             title: document.getElementById('game-over-title'),
             message: document.getElementById('game-over-message'),
@@ -226,23 +272,47 @@
 
         // --- Game Data ---
         const archetypes = {
-            gravekeeper: { name: "Gravekeeper", description: "Resistant to fear. Starts with higher Sanity.", startSanity: 85 },
-            acolyte: { name: "Acolyte", description: "Can perform rites to restore Sanity. Starts with a Holy Symbol.", startSanity: 75 },
-            herbalist: { name: "Herbalist", description: "Can identify rare plants for remedies. Starts with extra Medical Supplies.", startSanity: 70 },
-            'man-at-arms': { name: "Man-at-Arms", description: "Better at fighting off creatures. Starts with Silvered Ammunition.", startSanity: 65 },
-            rogue: { name: "Rogue", description: "Expert at scavenging and finding extra supplies.", startSanity: 60 },
-            noble: { name: "Disgraced Noble", description: "Starts with more food, but is more susceptible to despair.", startSanity: 50 },
+            gravekeeper: { name: "Gravekeeper", description: "Resistant to fear. Starts with higher Sanity.", startSanity: 85, startMoney: 50 },
+            acolyte: { name: "Acolyte", description: "Can perform rites to restore Sanity. Starts with a Holy Symbol.", startSanity: 75, startMoney: 75 },
+            herbalist: { name: "Herbalist", description: "Can identify rare plants. Starts with extra Medical Supplies.", startSanity: 70, startMoney: 80 },
+            'man-at-arms': { name: "Man-at-Arms", description: "Better at fending off creatures. Starts with Silvered Ammunition.", startSanity: 65, startMoney: 100 },
+            rogue: { name: "Rogue", description: "Expert at scavenging and finding extra supplies.", startSanity: 60, startMoney: 120 },
+            noble: { name: "Disgraced Noble", description: "Starts with more food and money, but is more susceptible to despair.", startSanity: 50, startMoney: 250 },
+            'vampire-hunter': { name: "Vampire Hunter", description: "Knows the ways of the undead. Starts with Holy Water and a Silvered Dagger.", startSanity: 70, startMoney: 90 },
+            paladin: { name: "Paladin", description: "A beacon of faith. Party is more resistant to Sanity loss.", startSanity: 80, startMoney: 60 },
         };
 
         const landmarks = [
             { name: "The Mists", distance: 0 },
-            { name: "Village of Barovia", distance: 50 },
-            { name: "River Ivlis Crossing", distance: 80 },
-            { name: "Old Bonegrinder", distance: 120 },
-            { name: "Town of Vallaki", distance: 180 },
-            { name: "Tsolenka Pass", distance: 250 },
-            { name: "The Amber Temple", distance: 300 },
+            { name: "Village of Barovia", distance: 50, type: 'town', store: 'bildraths', innCost: 10 },
+            { name: "River Ivlis Crossing", distance: 80, type: 'event' },
+            { name: "Old Bonegrinder", distance: 120, type: 'event' },
+            { name: "Town of Vallaki", distance: 180, type: 'town', store: 'araseks', innCost: 20 },
+            { name: "Tsolenka Pass", distance: 250, type: 'event' },
+            { name: "The Amber Temple", distance: 300, type: 'final' },
         ];
+
+        const itemData = {
+            food: { name: 'Food (lbs)', basePrice: 1 },
+            medicalSupplies: { name: 'Medical Supplies', basePrice: 20 },
+            silveredAmmo: { name: 'Silvered Ammo', basePrice: 50 },
+            holySymbols: { name: 'Holy Symbol', basePrice: 40 },
+            lanternOil: { name: 'Lantern Oil', basePrice: 10 },
+            holyWater: { name: 'Holy Water', basePrice: 75 },
+        };
+
+        const stores = {
+            bildraths: {
+                name: "Bildrath's Mercantile",
+                inventory: { food: 100, medicalSupplies: 5, lanternOil: 10 },
+                priceMod: 2.0 // Everything is twice as expensive
+            },
+            araseks: {
+                name: "Arasek Stockyard",
+                inventory: { food: 200, medicalSupplies: 10, lanternOil: 20, silveredAmmo: 5 },
+                priceMod: 1.5
+            }
+        };
 
         // --- Game State ---
         let gameState = {};
@@ -255,12 +325,14 @@
                     medicalSupplies: 5,
                     silveredAmmo: 5,
                     holySymbols: 0,
+                    holyWater: 0,
                     lanternOil: 3,
+                    money: 0,
                 },
                 distance: 0,
                 currentLandmarkIndex: 0,
                 days: 0,
-                gamePace: 'paused', // 'traveling', 'event', 'paused'
+                gamePace: 'paused', // 'traveling', 'event', 'paused', 'town'
             };
         }
 
@@ -311,11 +383,12 @@
             const selectedCards = ui.archetypeSelection.querySelectorAll('.selected-card');
             if (selectedCards.length !== 4) return;
 
-            gameState.party = []; // Clear party before re-populating
+            initializeGameState(); // Reset game state for the new party
+
             selectedCards.forEach((card, index) => {
                 const archKey = card.dataset.id;
                 const arch = archetypes[archKey];
-                const memberName = `Soul ${index + 1}`; // Simple naming for now
+                const memberName = `Soul ${index + 1}`;
                 gameState.party.push({
                     name: memberName,
                     archetype: arch.name,
@@ -323,13 +396,18 @@
                     sanity: arch.startSanity,
                     status: 'Normal',
                     phobias: [],
+                    isPaladin: arch.name === 'Paladin',
                 });
                 
-                // Add starting items based on archetype
+                gameState.inventory.money += arch.startMoney;
                 if (arch.name === 'Acolyte') gameState.inventory.holySymbols += 1;
                 if (arch.name === 'Herbalist') gameState.inventory.medicalSupplies += 5;
                 if (arch.name === 'Man-at-Arms') gameState.inventory.silveredAmmo += 5;
                 if (arch.name === 'Disgraced Noble') gameState.inventory.food += 40;
+                if (arch.name === 'Vampire Hunter') {
+                    gameState.inventory.holyWater += 1;
+                    gameState.inventory.silveredAmmo += 3; // For the dagger
+                }
             });
             
             startGame();
@@ -359,7 +437,7 @@
             // Party Status
             ui.partyStatus.innerHTML = '';
             gameState.party.forEach(member => {
-                if (member.health <= 0) return; // Don't display dead members
+                if (member.health <= 0) return;
                 const memberDiv = document.createElement('div');
                 memberDiv.className = 'character-card p-3 rounded';
                 memberDiv.innerHTML = `
@@ -368,10 +446,10 @@
                         <span class="text-sm ${member.status === 'Normal' ? 'text-green-400' : 'text-yellow-400'}">${member.status}</span>
                     </div>
                     <div class="progress-bar-container rounded overflow-hidden mb-1">
-                        <div class="progress-bar health-bar h-3" style="width: ${member.health}%"></div>
+                        <div class="progress-bar health-bar h-3" style="width: ${member.health}%" title="Health"></div>
                     </div>
                     <div class="progress-bar-container rounded overflow-hidden">
-                        <div class="progress-bar sanity-bar h-3" style="width: ${member.sanity}%"></div>
+                        <div class="progress-bar sanity-bar h-3" style="width: ${member.sanity}%" title="Sanity"></div>
                     </div>
                 `;
                 ui.partyStatus.appendChild(memberDiv);
@@ -379,26 +457,26 @@
 
             // Inventory Status
             ui.inventoryStatus.innerHTML = `
+                <p>Ducats: ${gameState.inventory.money}</p>
                 <p>Food: ${gameState.inventory.food} lbs</p>
                 <p>Medical Supplies: ${gameState.inventory.medicalSupplies}</p>
                 <p>Silvered Ammo: ${gameState.inventory.silveredAmmo}</p>
                 <p>Holy Symbols: ${gameState.inventory.holySymbols}</p>
+                <p>Holy Water: ${gameState.inventory.holyWater}</p>
                 <p>Lantern Oil: ${gameState.inventory.lanternOil}</p>
             `;
 
             // Progress Bar
+            const totalDistance = landmarks[landmarks.length - 1].distance;
+            const progressPercent = Math.max(0, Math.min(100, (gameState.distance / totalDistance) * 100));
+            ui.progressBar.style.width = `${progressPercent}%`;
+            ui.distanceText.textContent = `${gameState.distance} / ${totalDistance} miles`;
+
             const currentLandmark = landmarks[gameState.currentLandmarkIndex];
             const nextLandmark = landmarks[gameState.currentLandmarkIndex + 1];
             if (nextLandmark) {
-                const totalDistance = landmarks[landmarks.length - 1].distance;
-                const distanceToNext = nextLandmark.distance - currentLandmark.distance;
-                const progressOnLeg = gameState.distance - currentLandmark.distance;
-                const progressPercent = Math.max(0, Math.min(100, (progressOnLeg / distanceToNext) * 100));
-                ui.progressBar.style.width = `${progressPercent}%`;
-                ui.progressBar.textContent = `${Math.floor(progressPercent)}%`;
                 ui.currentLocationText.textContent = currentLandmark.name;
                 ui.nextLocationText.textContent = nextLandmark.name;
-                ui.distanceText.textContent = `${gameState.distance} / ${totalDistance} miles`;
             }
         }
 
@@ -408,45 +486,43 @@
             gameState.days++;
             logMessage(`--- Day ${gameState.days} ---`, 'event');
 
-            // 1. Calculate distance traveled
-            let distanceCovered = 0;
             const pace = ui.paceSelect.value;
+            if (pace === 'rest') {
+                logMessage("You spend the day resting and recuperating.");
+                handlePaceAndRationEffects(pace, ui.rationsSelect.value);
+                checkGameOver();
+                updateUI();
+                return;
+            }
+
+            let distanceCovered = 0;
             if (pace === 'steady') {
-                distanceCovered = 10 + Math.floor(Math.random() * 6); // 10-15
+                distanceCovered = 10 + Math.floor(Math.random() * 6);
             } else if (pace === 'grueling') {
-                distanceCovered = 15 + Math.floor(Math.random() * 11); // 15-25
+                distanceCovered = 15 + Math.floor(Math.random() * 11);
             }
             gameState.distance += distanceCovered;
 
-            // 2. Consume resources
             const rations = ui.rationsSelect.value;
             let foodConsumed = 0;
             const livingPartySize = gameState.party.filter(m => m.health > 0).length;
-            if (rations === 'filling') {
-                foodConsumed = livingPartySize * 3;
-            } else if (rations === 'meager') {
-                foodConsumed = livingPartySize * 2;
-            } else { // barebones
-                foodConsumed = livingPartySize * 1;
-            }
+            if (rations === 'filling') foodConsumed = livingPartySize * 3;
+            else if (rations === 'meager') foodConsumed = livingPartySize * 2;
+            else foodConsumed = livingPartySize * 1;
             gameState.inventory.food -= foodConsumed;
             logMessage(`You traveled ${distanceCovered} miles. You consumed ${foodConsumed} lbs of food.`);
 
-            // 3. Health & Sanity effects of pace and rations
             handlePaceAndRationEffects(pace, rations);
             
-            // 4. Check for events
-            checkForRandomEvent();
-
-            // 5. Check for landmark arrival
             const nextLandmark = landmarks[gameState.currentLandmarkIndex + 1];
             if (nextLandmark && gameState.distance >= nextLandmark.distance) {
                 gameState.distance = nextLandmark.distance;
                 gameState.currentLandmarkIndex++;
                 arriveAtLandmark(landmarks[gameState.currentLandmarkIndex]);
+            } else {
+                 checkForRandomEvent();
             }
 
-            // 6. Check for game over
             checkGameOver();
             updateUI();
         }
@@ -454,7 +530,6 @@
         function handlePaceAndRationEffects(pace, rations) {
              gameState.party.forEach(member => {
                 if (member.health <= 0) return;
-                // Pace effects
                 if (pace === 'grueling' && Math.random() < 0.2) {
                     member.health = Math.max(0, member.health - 5);
                     logMessage(`${member.name} is exhausted from the grueling pace.`, 'danger');
@@ -463,44 +538,39 @@
                     member.health = Math.min(100, member.health + 10);
                     logMessage(`${member.name} feels rested.`, 'success');
                 }
-
-                // Ration effects
                 if (rations === 'barebones' && Math.random() < 0.25) {
                     member.health = Math.max(0, member.health - 5);
-                    member.sanity = Math.max(0, member.sanity - 3);
-                    logMessage(`${member.name} is weak from hunger.`, 'danger');
+                    changeSanity(member, -3, 'due to gnawing hunger');
                 }
                 if (rations === 'filling' && Math.random() < 0.1) {
-                    member.sanity = Math.min(100, member.sanity + 2);
+                    changeSanity(member, 2, 'from a full belly');
                 }
              });
         }
         
         function changeSanity(member, amount, reason) {
+            if (member.isPaladin && amount < 0) {
+                amount = Math.floor(amount * 0.8); // Paladins are 20% more resistant to sanity loss
+            }
             member.sanity = Math.max(0, Math.min(100, member.sanity + amount));
             if (amount < 0) {
-                logMessage(`${member.name} loses ${-amount} sanity. ${reason}`, 'danger');
+                logMessage(`${member.name} loses ${-amount} sanity ${reason}.`, 'danger');
                 checkSanityEffects(member);
             } else if (amount > 0) {
-                logMessage(`${member.name} gains ${amount} sanity. ${reason}`, 'success');
+                logMessage(`${member.name} gains ${amount} sanity ${reason}.`, 'success');
             }
         }
 
         function checkSanityEffects(member) {
-            if (member.sanity < 50 && member.sanity > 25 && Math.random() < 0.1) {
-                if (member.status === 'Normal') {
-                    member.status = 'Unsettled';
-                    logMessage(`${member.name} has become unsettled, muttering in their sleep.`, 'danger');
-                }
+            if (member.sanity < 50 && member.sanity > 25 && member.status === 'Normal' && Math.random() < 0.1) {
+                member.status = 'Unsettled';
+                logMessage(`${member.name} has become unsettled, muttering in their sleep.`, 'danger');
             }
-            if (member.sanity <= 25 && member.sanity > 0 && Math.random() < 0.15) {
-                if (member.status !== 'Unhinged') {
-                    member.status = 'Unhinged';
-                    logMessage(`${member.name}'s eyes dart around nervously. They are becoming unhinged.`, 'danger');
-                    // Add a phobia or mania here in future
-                }
+            if (member.sanity <= 25 && member.sanity > 0 && member.status !== 'Unhinged' && Math.random() < 0.15) {
+                member.status = 'Unhinged';
+                logMessage(`${member.name}'s eyes dart around nervously. They are becoming unhinged.`, 'danger');
             }
-            if (member.sanity <= 0) {
+            if (member.sanity <= 0 && member.status !== 'Lost') {
                 member.status = 'Lost';
                 member.health = 0;
                 logMessage(`${member.name} has been lost to madness! They wander off into the mists, screaming.`, 'danger');
@@ -511,7 +581,6 @@
             if (gameState.inventory.food <= 0) {
                 gameState.inventory.food = 0;
                 logMessage("You have run out of food!", 'danger');
-                // Apply starvation damage
                 gameState.party.forEach(member => {
                     if (member.health > 0) {
                         member.health = Math.max(0, member.health - 15);
@@ -519,7 +588,6 @@
                     }
                 });
             }
-
             const livingMembers = gameState.party.filter(m => m.health > 0);
             if (livingMembers.length === 0) {
                 gameOverScreen.title.textContent = "Your Party Has Perished";
@@ -530,34 +598,139 @@
         
         function arriveAtLandmark(landmark) {
             logMessage(`You have arrived at ${landmark.name}.`, 'success');
-            gameState.gamePace = 'paused';
-            
-            // Trigger landmark-specific event
-            const event = landmarkEvents.find(e => e.landmark === landmark.name);
-            if (event) {
-                triggerEvent(event);
-            } else if (landmark.name === "The Amber Temple") {
-                // Victory condition
+            gameState.gamePace = 'town'; // Pause journey
+            buttons.continue.disabled = true;
+
+            if (landmark.type === 'town') {
+                showTownModal(landmark);
+            } else if (landmark.type === 'event') {
+                const event = landmarkEvents.find(e => e.landmark === landmark.name);
+                if (event) {
+                    triggerEvent(event, () => { 
+                        gameState.gamePace = 'paused';
+                        buttons.continue.disabled = false;
+                    });
+                }
+            } else if (landmark.type === 'final') {
                 gameOverScreen.title.textContent = "You Have Survived";
                 gameOverScreen.message.textContent = "You have reached the Amber Temple. It is a place of great evil, but you have survived the trail. For now.";
                 switchScreen('gameOver');
             }
         }
 
+        function showTownModal(landmark) {
+            townModal.container.style.display = 'flex';
+            townModal.title.textContent = `Welcome to ${landmark.name}`;
+            townModal.description.textContent = landmark.name === 'Village of Barovia' 
+                ? "The village is a sad, quiet place. The houses are shuttered, and the few people you see hurry along, avoiding your gaze."
+                : "Vallaki is a larger, walled town, buzzing with a strange, forced cheerfulness. Guards eye you with suspicion.";
+            
+            townModal.choices.innerHTML = '';
+
+            // Add store choice
+            if (landmark.store) {
+                const store = stores[landmark.store];
+                const storeBtn = document.createElement('button');
+                storeBtn.textContent = `Visit ${store.name}`;
+                storeBtn.className = 'btn w-full p-3 rounded text-left';
+                storeBtn.onclick = () => showTradeModal(landmark.store);
+                townModal.choices.appendChild(storeBtn);
+            }
+
+            // Add inn choice
+            if (landmark.innCost) {
+                const innBtn = document.createElement('button');
+                innBtn.textContent = `Rest at the Inn (${landmark.innCost} ducats)`;
+                innBtn.className = 'btn w-full p-3 rounded text-left';
+                innBtn.onclick = () => {
+                    if (gameState.inventory.money >= landmark.innCost) {
+                        gameState.inventory.money -= landmark.innCost;
+                        logMessage(`You spend the night at the inn. The beds are lumpy, but it's better than the road.`, 'success');
+                        gameState.party.forEach(m => {
+                            m.health = Math.min(100, m.health + 25);
+                            changeSanity(m, 15, 'after a safe night\'s sleep');
+                        });
+                        updateUI();
+                    } else {
+                        logMessage("You don't have enough money to stay at the inn.", 'danger');
+                    }
+                };
+                townModal.choices.appendChild(innBtn);
+            }
+
+            // Add leave choice
+            const leaveBtn = document.createElement('button');
+            leaveBtn.textContent = 'Continue on the Trail';
+            leaveBtn.className = 'btn w-full p-3 rounded text-left mt-4';
+            leaveBtn.onclick = () => {
+                townModal.container.style.display = 'none';
+                gameState.gamePace = 'paused';
+                buttons.continue.disabled = false;
+                logMessage("You leave the settlement behind and return to the oppressive road.");
+            };
+            townModal.choices.appendChild(leaveBtn);
+        }
+
+        function showTradeModal(storeKey) {
+            const store = stores[storeKey];
+            tradeModal.container.style.display = 'flex';
+            tradeModal.title.textContent = store.name;
+            
+            function updateTradeUI() {
+                // Store Inventory
+                tradeModal.storeInventory.innerHTML = '';
+                for (const itemKey in store.inventory) {
+                    if (store.inventory[itemKey] > 0) {
+                        const price = Math.ceil(itemData[itemKey].basePrice * store.priceMod);
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'trade-item flex justify-between items-center p-2 rounded cursor-pointer';
+                        itemDiv.innerHTML = `<span>${itemData[itemKey].name} (${store.inventory[itemKey]})</span> <span>${price}d</span>`;
+                        itemDiv.onclick = () => { // Buy
+                            if (gameState.inventory.money >= price) {
+                                gameState.inventory.money -= price;
+                                gameState.inventory[itemKey]++;
+                                store.inventory[itemKey]--;
+                                updateTradeUI();
+                                updateUI();
+                            }
+                        };
+                        tradeModal.storeInventory.appendChild(itemDiv);
+                    }
+                }
+
+                // Player Inventory
+                tradeModal.playerInventory.innerHTML = '';
+                for (const itemKey in gameState.inventory) {
+                    if (itemData[itemKey] && gameState.inventory[itemKey] > 0) {
+                        const price = Math.floor(itemData[itemKey].basePrice / 2); // Sell for half base price
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'trade-item flex justify-between items-center p-2 rounded cursor-pointer';
+                        itemDiv.innerHTML = `<span>${itemData[itemKey].name} (${gameState.inventory[itemKey]})</span> <span>${price}d</span>`;
+                        itemDiv.onclick = () => { // Sell
+                            gameState.inventory[itemKey]--;
+                            gameState.inventory.money += price;
+                            store.inventory[itemKey]++;
+                            updateTradeUI();
+                            updateUI();
+                        };
+                        tradeModal.playerInventory.appendChild(itemDiv);
+                    }
+                }
+            }
+            updateTradeUI();
+        }
+
         // --- Event System ---
         function checkForRandomEvent() {
-            if (gameState.gamePace === 'event') return; // Don't trigger event if one is already active
-            // Higher chance of event at grueling pace
+            if (gameState.gamePace === 'event') return;
             const eventChance = (ui.paceSelect.value === 'grueling') ? 0.5 : 0.3;
             if (Math.random() < eventChance) {
-                // Select a random event that is not a landmark event
-                const availableEvents = randomEvents.filter(e => !e.landmark);
-                const event = availableEvents[Math.floor(Math.random() * availableEvents.length)];
+                const event = randomEvents[Math.floor(Math.random() * randomEvents.length)];
                 triggerEvent(event);
             }
         }
 
-        function triggerEvent(event) {
+        function triggerEvent(event, onclose) {
             gameState.gamePace = 'event';
             buttons.continue.disabled = true;
             eventModal.container.style.display = 'flex';
@@ -572,8 +745,12 @@
                 button.onclick = () => {
                     choice.action();
                     eventModal.container.style.display = 'none';
-                    gameState.gamePace = 'paused';
-                    buttons.continue.disabled = false;
+                    if (onclose) {
+                        onclose();
+                    } else {
+                        gameState.gamePace = 'paused';
+                        buttons.continue.disabled = false;
+                    }
                     updateUI();
                     checkGameOver();
                 };
@@ -592,17 +769,17 @@
                         logMessage("You decide to brave the river's current.");
                         if (Math.random() > 0.5) {
                             logMessage("You make it across, but the chilling water seeps into your bones.", 'success');
-                            gameState.party.forEach(m => changeSanity(m, -5, "from the unnatural cold."));
+                            gameState.party.forEach(m => changeSanity(m, -5, "from the unnatural cold"));
                         } else {
                             logMessage("The current sweeps away some of your supplies!", 'danger');
                             const lostFood = Math.floor(Math.random() * 20) + 5;
-                            gameState.inventory.food -= lostFood;
+                            gameState.inventory.food = Math.max(0, gameState.inventory.food - lostFood);
                             logMessage(`You lost ${lostFood} lbs of food.`);
                         }
                     }},
                     { text: "Spend time building a raft.", action: () => {
                         logMessage("You spend half a day building a crude raft.");
-                        gameState.inventory.food -= 10; // Consume food for the time spent
+                        gameState.inventory.food = Math.max(0, gameState.inventory.food - 10);
                         logMessage("The raft holds. You cross safely, but you've lost precious time and rations.");
                     }},
                 ]
@@ -616,18 +793,20 @@
                         logMessage("You steer clear of the wretched windmill. A wise choice.");
                         gameState.party.forEach(m => {
                             if (Math.random() < 0.3) {
-                                changeSanity(m, -10, "from the palpable evil of the place.");
+                                changeSanity(m, -10, "from the palpable evil of the place");
                             }
                         });
                     }},
                     { text: "Investigate the windmill.", action: () => {
                         logMessage("You approach the windmill, your heart pounding in your chest.", 'danger');
                         logMessage("Three grotesque women emerge, their eyes glowing. 'Come for a pastry, dearies?' they cackle. You flee in terror.");
-                        gameState.party.forEach(m => changeSanity(m, -25, "after encountering the hags."));
+                        gameState.party.forEach(m => changeSanity(m, -25, "after encountering the hags"));
                         if (Math.random() < 0.2) {
-                            const unluckyMember = gameState.party[Math.floor(Math.random() * gameState.party.length)];
-                            unluckyMember.health -= 30;
-                            logMessage(`${unluckyMember.name} was struck by a vile curse while fleeing!`, 'danger');
+                            const unluckyMember = gameState.party.find(m => m.health > 0);
+                            if (unluckyMember) {
+                                unluckyMember.health -= 30;
+                                logMessage(`${unluckyMember.name} was struck by a vile curse while fleeing!`, 'danger');
+                            }
                         }
                     }},
                 ]
@@ -641,7 +820,7 @@
                 choices: [
                     { text: "Huddle together and wait for it to pass.", action: () => {
                         logMessage("You wait, nerves frayed, until the natural sounds of the woods slowly return.");
-                        gameState.party.forEach(m => changeSanity(m, -5, "from the oppressive silence."));
+                        gameState.party.forEach(m => changeSanity(m, -5, "from the oppressive silence"));
                     }}
                 ]
             },
@@ -670,7 +849,7 @@
                     { text: "Press on.", action: () => {
                         logMessage("You wander for hours, losing a full day's travel and rations.", 'danger');
                         gameState.inventory.food -= gameState.party.filter(m=>m.health>0).length * 2;
-                        gameState.party.forEach(m => changeSanity(m, -8, "from the disorienting mists."));
+                        gameState.party.forEach(m => changeSanity(m, -8, "from the disorienting mists"));
                     }}
                 ]
             },
@@ -680,7 +859,7 @@
                 choices: [
                     { text: "Offer a prayer.", action: () => {
                         logMessage("A sense of peace washes over the party, a rare comfort in this cursed land.", 'success');
-                        gameState.party.forEach(m => changeSanity(m, 10, "from the moment of respite."));
+                        gameState.party.forEach(m => changeSanity(m, 10, "from the moment of respite"));
                     }}
                 ]
             },
@@ -703,17 +882,56 @@
                         logMessage("You decide not to risk it and continue on your way.");
                     }},
                 ]
+            },
+            {
+                title: "Night Howls",
+                description: "As dusk falls, the howling of wolves echoes through the trees. They sound close. Too close.",
+                choices: [
+                    { text: "Use lantern oil to make a large fire.", action: () => {
+                        if (gameState.inventory.lanternOil > 0) {
+                            gameState.inventory.lanternOil--;
+                            logMessage("You build a roaring bonfire. The wolves keep their distance, their eyes glinting in the dark.", 'success');
+                        } else {
+                            logMessage("You have no extra oil! The wolves grow bold, circling your meager campfire.", 'danger');
+                            const unluckyMember = gameState.party.find(m => m.health > 0);
+                            if (unluckyMember) {
+                                unluckyMember.health -= 20;
+                                changeSanity(unluckyMember, -15, "after a terrifying night");
+                                logMessage(`${unluckyMember.name} was nipped by a wolf in the dark!`, 'danger');
+                            }
+                        }
+                    }},
+                    { text: "Stand guard with weapons drawn.", action: () => {
+                        logMessage("You spend a sleepless night on high alert. The wolves test your defenses but do not attack directly.");
+                        gameState.party.forEach(m => changeSanity(m, -8, "from the tense vigil"));
+                    }},
+                ]
+            },
+            {
+                title: "A Skeletal Messenger",
+                description: "A skeleton in rusted armor stumbles out of the woods. It points a bony finger down the road, then collapses into a heap of bones.",
+                choices: [
+                    { text: "Ponder its meaning.", action: () => {
+                        logMessage("Was it a warning? A guide? The ambiguity is unsettling.");
+                        gameState.party.forEach(m => changeSanity(m, -5, "from the cryptic encounter"));
+                    }},
+                     { text: "Search the bones.", action: () => {
+                        if (Math.random() > 0.7) {
+                            const foundMoney = Math.floor(Math.random() * 20) + 5;
+                            gameState.inventory.money += foundMoney;
+                            logMessage(`You find a small, mouldy pouch containing ${foundMoney} ducats!`, 'success');
+                        } else {
+                            logMessage("You find nothing but dust and regret.");
+                        }
+                    }},
+                ]
             }
         ];
 
 
         // --- Event Listeners ---
         buttons.start.addEventListener('click', () => {
-            // Reset character selection UI before switching
-            const selectedCards = ui.archetypeSelection.querySelectorAll('.selected-card');
-            selectedCards.forEach(c => c.classList.remove('selected-card'));
-            buttons.finalizeParty.disabled = true;
-            ui.charCreationMessage.textContent = '';
+            setupCharacterCreation();
             switchScreen('characterCreation');
         });
         buttons.finalizeParty.addEventListener('click', finalizeParty);
@@ -723,6 +941,9 @@
             switchScreen('start');
         });
         buttons.continue.addEventListener('click', continueJourney);
+        buttons.closeTrade.addEventListener('click', () => {
+            tradeModal.container.style.display = 'none';
+        });
 
         // --- Initial Setup ---
         initializeGameState();
